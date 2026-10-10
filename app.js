@@ -8,29 +8,32 @@ const moviespatch = require("./router/updateRouter");
 const deleteRouter = require("./router/deleteRouter");
 const addList = require("./router/addListRouter");
 const jwt = require("jsonwebtoken");
-const dotenv = require("dotenv"); 
+const dotenv = require("dotenv");
+const openAI = require("openai");
+const { GoogleGenAI } = require("@google/genai");
+
 const cors = require("cors");
 dotenv.config();
 
 const users = [
-  {
-    id: 1,
-    username: 'admin',
-    password: 'admin123',
-    role: 'admin'
-  },
-  {
-    id: 2,
-    username: 'manager',
-    password: 'manager123',
-    role: 'manager'
-  },
-  {
-    id: 3,
-    username: 'shiva',
-    password: 'shiva123',
-    role: 'user'
-  }
+    {
+        id: 1,
+        username: 'admin',
+        password: 'admin123',
+        role: 'admin'
+    },
+    {
+        id: 2,
+        username: 'manager',
+        password: 'manager123',
+        role: 'manager'
+    },
+    {
+        id: 3,
+        username: 'shiva',
+        password: 'shiva123',
+        role: 'user'
+    }
 ];
 
 // CORS options to allow requests from frontend running on port 5500
@@ -137,6 +140,17 @@ const deleteRow = ((req, res) => {
 
 })
 
+// const client = new openAI.OpenAI({
+//     apiKey: process.env.OPENAI_API_KEY,
+// });
+
+
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+});
+
+
+
 app.post('/auth', (req, res) => {
     // console.log(req.body.headers.Authorization);
     const authorization = req.body.headers.Authorization;
@@ -163,14 +177,62 @@ app.post('/login', async (req, res) => {
         return res.status(401).json({ "message": "Invalid credentials" });
     }
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ "message": "hello from server", "app": "test", "token": token , role: user.role , isAuthenticated: true});
+    res.status(200).json({ "message": "hello from server", "app": "test", "token": token, role: user.role, isAuthenticated: true });
 })
+
+//app.post("/api/chat", async (req, res) => {
+    // try {
+    //     const response = await client.responses.create({
+    //         model: "gpt-5-mini",
+    //         input: req.body.message,
+    //     });
+
+    //     res.json({ reply: response.output_text });
+    // } catch (error) {
+    //     console.error("AI API request failed");
+
+    //     res.status(500).json({
+    //         error: "Unable to get AI response",
+    //         details: error.message,
+    //     });
+    // }
+//});
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    console.log("Received body:", req.body);
+
+    const { message } = req.body || {};
+
+    if (typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({
+        error: "Please provide a non-empty message",
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: message,
+    });
+
+    res.json({
+      reply: response.text,
+    });
+  } catch (error) {
+    console.error("Gemini API error:", error.message);
+
+    res.status(500).json({
+      error: "Unable to get AI response",
+      details: error.message,
+    });
+  }
+});
 
 app.get('/', (req, res) => {
     res.status(200).json({ "message": "hello from server" });
 })
 app.get('/api/v1/movies', movieslistRouter);
-app.post('/api/v1/addmovies', addList );
+app.post('/api/v1/addmovies', addList);
 
 app.patch('/api/v1/tours/:id', moviespatch);
 app.delete('/api/v1/tours/:id', deleteRouter);
